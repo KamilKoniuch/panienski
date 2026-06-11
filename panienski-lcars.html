@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCARS — Misja: Panieński</title>
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --orange:   #ff9c00;
+    --peach:    #ffcc99;
+    --lavender: #cc99cc;
+    --blue:     #9999cc;
+    --red:      #cc6666;
+    --gold:     #ffcc66;
+    --bg:       #000000;
+    --dim:      #664a26;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    background:var(--bg);
+    color:var(--peach);
+    font-family:'Antonio','Arial Narrow',Arial,sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    overflow:hidden;
+  }
+
+  /* ====== RAMA LCARS ====== */
+  .frame {
+    display:grid;
+    grid-template-columns:150px 1fr;
+    grid-template-rows:90px 1fr 50px;
+    grid-template-areas:
+      "elbow  header"
+      "side   main"
+      "footel footer";
+    height:100dvh;
+    gap:8px;
+    padding:8px;
+  }
+
+  /* łokieć górny */
+  .elbow {
+    grid-area:elbow;
+    background:var(--orange);
+    border-radius:0 0 0 60px;
+    position:relative;
+  }
+  .elbow::after {
+    content:"";
+    position:absolute;
+    right:-8px; bottom:-8px;
+    width:60px; height:30px;
+    background:var(--bg);
+    border-radius:0 0 0 30px;
+  }
+  .header {
+    grid-area:header;
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+  }
+  .header .bar { height:30px; border-radius:15px; }
+  .header .bar.b1 { flex:0 0 60px; background:var(--lavender); border-radius:0; }
+  .header .bar.b2 { flex:1; background:var(--orange); border-radius:0; }
+  .header .bar.b3 { flex:0 0 90px; background:var(--blue); border-radius:0 15px 15px 0; }
+  .header h1 {
+    position:absolute;
+    top:14px; right:24px;
+    font-size:clamp(20px,4vw,38px);
+    font-weight:700;
+    color:var(--orange);
+    letter-spacing:.1em;
+  }
+  .stardate {
+    position:absolute;
+    top:58px; right:24px;
+    font-size:14px;
+    color:var(--blue);
+  }
+
+  /* kolumna boczna: 7 bloków misji */
+  .side {
+    grid-area:side;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .mblock {
+    flex:1;
+    background:var(--dim);
+    color:var(--bg);
+    display:flex;
+    align-items:flex-end;
+    justify-content:flex-end;
+    padding:6px 10px;
+    font-weight:700;
+    font-size:18px;
+    transition:background .4s;
+    min-height:0;
+  }
+  .mblock.active  { background:var(--orange); animation:pulse 1.2s infinite; }
+  .mblock.done    { background:var(--lavender); }
+  @keyframes pulse { 50% { background:var(--gold); } }
+
+  /* łokieć i pasek dolny */
+  .footel {
+    grid-area:footel;
+    background:var(--orange);
+    border-radius:60px 0 0 0;
+    position:relative;
+  }
+  .footel::after {
+    content:"";
+    position:absolute;
+    right:-8px; top:-8px;
+    width:60px; height:30px;
+    background:var(--bg);
+    border-radius:30px 0 0 0;
+  }
+  .footer {
+    grid-area:footer;
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .footer .bar { height:22px; }
+  .footer .bar.f1 { flex:1; background:var(--orange); }
+  .footer .bar.f2 { flex:0 0 120px; background:var(--red); }
+  .footer .bar.f3 { flex:0 0 70px; background:var(--blue); border-radius:0 11px 11px 0; }
+
+  /* ====== EKRAN GŁÓWNY ====== */
+  .main {
+    grid-area:main;
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:4vw 5vw;
+  }
+  .screen { display:none; animation:fadein .5s; }
+  .screen.visible { display:block; }
+  @keyframes fadein { from { opacity:0; transform:translateY(10px); } }
+
+  .eyebrow {
+    color:var(--blue);
+    font-size:clamp(13px,2vw,17px);
+    margin-bottom:10px;
+  }
+  .eyebrow .blink { animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  .mission-title {
+    color:var(--orange);
+    font-size:clamp(30px,6vw,64px);
+    font-weight:700;
+    line-height:1.05;
+    margin-bottom:18px;
+  }
+  .mission-desc {
+    color:var(--peach);
+    font-size:clamp(17px,2.8vw,26px);
+    line-height:1.5;
+    max-width:34em;
+    min-height:4.5em;
+    text-transform:none;
+    letter-spacing:.02em;
+  }
+  .mission-desc::after { content:"▌"; color:var(--orange); animation:blink .8s steps(1) infinite; }
+  .mission-desc.typed::after { content:""; }
+
+  .lcars-btn {
+    margin-top:34px;
+    display:inline-block;
+    background:var(--orange);
+    color:var(--bg);
+    border:none;
+    font-family:inherit;
+    font-weight:700;
+    font-size:clamp(16px,2.4vw,22px);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    padding:14px 38px;
+    border-radius:24px;
+    cursor:pointer;
+    transition:background .15s, transform .1s;
+  }
+  .lcars-btn:hover  { background:var(--gold); }
+  .lcars-btn:active { transform:scale(.97); }
+  .lcars-btn:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+  .lcars-btn.secondary { background:var(--blue); }
+
+  .progress-label {
+    position:absolute;
+    bottom:16px; left:5vw;
+    color:var(--lavender);
+    font-size:14px;
+  }
+
+  /* finał */
+  .finale .mission-title { color:var(--gold); }
+  .hearts { font-size:clamp(28px,5vw,48px); margin-top:20px; letter-spacing:.3em; }
+  .hearts span { display:inline-block; animation:float 2s ease-in-out infinite; }
+  .hearts span:nth-child(2) { animation-delay:.3s; }
+  .hearts span:nth-child(3) { animation-delay:.6s; }
+  @keyframes float { 50% { transform:translateY(-10px); } }
+
+  @media (prefers-reduced-motion:reduce) {
+    *, *::after { animation:none !important; transition:none !important; }
+  }
+
+  /* ====== MOBILE ====== */
+  @media (max-width:640px) {
+    .frame {
+      grid-template-columns:1fr;
+      grid-template-rows:70px 44px 1fr 36px;
+      grid-template-areas:
+        "header"
+        "side"
+        "main"
+        "footer";
+    }
+    .elbow, .footel { display:none; }
+    .header { position:relative; }
+    .header h1 { top:4px; right:12px; font-size:26px; }
+    .stardate { top:38px; right:12px; font-size:11px; }
+    .side { flex-direction:row; }
+    .mblock { align-items:center; justify-content:center; font-size:15px; padding:4px; }
+    .main { padding:24px 18px; }
+    .progress-label { left:18px; bottom:8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="elbow"></div>
+
+  <div class="header">
+    <div class="bar b1"></div>
+    <div class="bar b2"></div>
+    <div class="bar b3"></div>
+    <h1>Misja: Panieński</h1>
+    <div class="stardate" id="stardate"></div>
+  </div>
+
+  <nav class="side" id="side" aria-label="Postęp misji"></nav>
+
+  <main class="main">
+    <!-- START -->
+    <section class="screen visible" id="screen-start">
+      <div class="eyebrow">Dziennik kapitański &nbsp;·&nbsp; dostęp przyznany</div>
+      <div class="mission-title">Witaj na pokładzie,<br>Panno Młoda</div>
+      <p class="mission-desc typed">Centrala przygotowała dla Ciebie 7 tajnych misji. Każda kolejna odblokuje się dopiero po wykonaniu poprzedniej. Załoga (druhny) służy wsparciem logistycznym i moralnym. Powodzenia, Kapitan!</p>
+      <button class="lcars-btn" onclick="startMissions()">Rozpocznij misję</button>
+    </section>
+
+    <!-- MISJA -->
+    <section class="screen" id="screen-mission">
+      <div class="eyebrow"><span class="blink">●</span> Przychodząca transmisja &nbsp;·&nbsp; priorytet: czerwony</div>
+      <div class="mission-title" id="m-title"></div>
+      <p class="mission-desc" id="m-desc"></p>
+      <button class="lcars-btn" id="m-btn" onclick="completeMission()" hidden>Zadanie wykonane ✓</button>
+    </section>
+
+    <!-- FINAŁ -->
+    <section class="screen finale" id="screen-finale">
+      <div class="eyebrow">Transmisja z centrali floty</div>
+      <div class="mission-title">Wszystkie misje<br>zakończone sukcesem!</div>
+      <p class="mission-desc typed">Kapitan, udowodniłaś, że żadne wyzwanie nie jest Ci straszne. Flota melduje gotowość do ostatniej, dożywotniej misji: ślubu. Niech moc... znaczy, niech miłość będzie z Tobą! 🖖</p>
+      <div class="hearts"><span>💛</span><span>🧡</span><span>💜</span></div>
+      <button class="lcars-btn secondary" onclick="location.reload()">Restart programu</button>
+    </section>
+
+    <div class="progress-label" id="progress"></div>
+  </main>
+
+  <div class="footel"></div>
+  <div class="footer">
+    <div class="bar f1"></div>
+    <div class="bar f2"></div>
+    <div class="bar f3"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   EDYTUJ TUTAJ — wpisz własne zadania (tytuł + treść)
+   ================================================================ */
+const MISSIONS = [
+  { title:"Misja 01 · Pierwszy kontakt",
+    desc:"Zdobądź autograf i życzenia ślubne od zupełnie obcej osoby. Bonusowe punkty, jeśli zaśpiewa Ci przy tym sto lat." },
+  { title:"Misja 02 · Kanał komunikacyjny",
+    desc:"Zadzwoń do przyszłego męża i wyznaj mu miłość... mówiąc wyłącznie cytatami z piosenek." },
+  { title:"Misja 03 · Analiza wspomnień",
+    desc:"Opowiedz załodze historię waszego poznania — ale w wersji epickiej, jakby to był zwiastun filmu sci-fi." },
+  { title:"Misja 04 · Manewry taneczne",
+    desc:"Wciągnij na parkiet (lub chodnik) przynajmniej trzy osoby i poprowadź wspólny układ taneczny przez minimum jedną zwrotkę." },
+  { title:"Misja 05 · Misja dyplomatyczna",
+    desc:"Znajdź osobę o imieniu takim jak Twój przyszły mąż i zrób z nią selfie. Jeśli się nie uda — selfie z kimś, kto zna kogoś o tym imieniu." },
+  { title:"Misja 06 · Toast kapitański",
+    desc:"Wygłoś uroczysty toast za załogę — wymień każdą druhnę i powiedz jej jedną rzecz, za którą ją kochasz." },
+  { title:"Misja 07 · Ostatnia granica",
+    desc:"Sekretne zadanie od druhen. Zgłoś się do pierwszej oficer (świadkowej) po rozkazy. Powodzenia, Kapitan!" },
+];
+/* ================================================================ */
+
+let current = -1;
+let typeTimer = null;
+
+const side = document.getElementById('side');
+MISSIONS.forEach((_, i) => {
+  const b = document.createElement('div');
+  b.className = 'mblock';
+  b.textContent = String(i + 1).padStart(2, '0');
+  side.appendChild(b);
+});
+const blocks = [...document.querySelectorAll('.mblock')];
+
+document.getElementById('stardate').textContent =
+  'Data gwiezdna ' + (new Date().getFullYear() - 1700 + (new Date().getMonth() + 1) / 100).toFixed(2).replace('.', '');
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+  document.getElementById(id).classList.add('visible');
+}
+
+function beep(freq = 880, dur = 0.09) {
+  try {
+    const ctx = beep.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch (e) {}
+}
+
+function typewrite(el, text, done) {
+  clearInterval(typeTimer);
+  el.classList.remove('typed');
+  el.textContent = '';
+  let i = 0;
+  typeTimer = setInterval(() => {
+    el.textContent = text.slice(0, ++i);
+    if (i % 3 === 0) beep(1200 + Math.random() * 300, 0.02);
+    if (i >= text.length) {
+      clearInterval(typeTimer);
+      el.classList.add('typed');
+      done && done();
+    }
+  }, 28);
+}
+
+function startMissions() { beep(660); next(); }
+
+function next() {
+  current++;
+  if (current >= MISSIONS.length) { finale(); return; }
+  blocks.forEach((b, i) => {
+    b.classList.toggle('done', i < current);
+    b.classList.toggle('active', i === current);
+  });
+  const m = MISSIONS[current];
+  document.getElementById('m-title').textContent = m.title;
+  document.getElementById('progress').textContent =
+    `Misja ${current + 1} z ${MISSIONS.length}`;
+  const btn = document.getElementById('m-btn');
+  btn.hidden = true;
+  show('screen-mission');
+  typewrite(document.getElementById('m-desc'), m.desc, () => { btn.hidden = false; });
+}
+
+function completeMission() {
+  beep(523); setTimeout(() => beep(784), 120); setTimeout(() => beep(1047), 240);
+  next();
+}
+
+function finale() {
+  blocks.forEach(b => { b.classList.remove('active'); b.classList.add('done'); });
+  document.getElementById('progress').textContent = 'Status: misja zakończona';
+  show('screen-finale');
+}
+</script>
+</body>
+</html>
