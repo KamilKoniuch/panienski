@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCARS — Misja: Panieński</title>
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --orange:   #ff9c00;
+    --peach:    #ffcc99;
+    --lavender: #cc99cc;
+    --blue:     #9999cc;
+    --red:      #cc6666;
+    --gold:     #ffcc66;
+    --bg:       #000000;
+    --dim:      #664a26;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    background:var(--bg);
+    color:var(--peach);
+    font-family:'Antonio','Arial Narrow',Arial,sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    overflow:hidden;
+  }
+
+  /* ====== RAMA LCARS ====== */
+  .frame {
+    display:grid;
+    grid-template-columns:150px 1fr;
+    grid-template-rows:90px 1fr 50px;
+    grid-template-areas:
+      "elbow  header"
+      "side   main"
+      "footel footer";
+    height:100dvh;
+    gap:8px;
+    padding:8px;
+  }
+  .elbow {
+    grid-area:elbow;
+    background:var(--orange);
+    border-radius:0 0 0 60px;
+    position:relative;
+  }
+  .elbow::after {
+    content:"";
+    position:absolute;
+    right:-8px; bottom:-8px;
+    width:60px; height:30px;
+    background:var(--bg);
+    border-radius:0 0 0 30px;
+  }
+  .header {
+    grid-area:header;
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+  }
+  .header .bar { height:30px; }
+  .header .bar.b1 { flex:0 0 60px; background:var(--lavender); }
+  .header .bar.b2 { flex:1; background:var(--orange); }
+  .header .bar.b3 { flex:0 0 90px; background:var(--blue); border-radius:0 15px 15px 0; }
+  .header h1 {
+    position:absolute;
+    top:14px; right:24px;
+    font-size:clamp(20px,4vw,38px);
+    font-weight:700;
+    color:var(--orange);
+    letter-spacing:.1em;
+  }
+  .stardate {
+    position:absolute;
+    top:58px; right:24px;
+    font-size:14px;
+    color:var(--blue);
+  }
+
+  .side {
+    grid-area:side;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .mblock {
+    flex:1;
+    background:var(--dim);
+    color:var(--bg);
+    display:flex;
+    align-items:flex-end;
+    justify-content:flex-end;
+    padding:6px 10px;
+    font-weight:700;
+    font-size:18px;
+    transition:background .4s;
+    min-height:0;
+  }
+  .mblock.active  { background:var(--orange); animation:pulse 1.2s infinite; }
+  .mblock.done    { background:var(--lavender); }
+  @keyframes pulse { 50% { background:var(--gold); } }
+
+  .footel {
+    grid-area:footel;
+    background:var(--orange);
+    border-radius:60px 0 0 0;
+    position:relative;
+  }
+  .footel::after {
+    content:"";
+    position:absolute;
+    right:-8px; top:-8px;
+    width:60px; height:30px;
+    background:var(--bg);
+    border-radius:30px 0 0 0;
+  }
+  .footer {
+    grid-area:footer;
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .footer .bar { height:22px; }
+  .footer .bar.f1 { flex:1; background:var(--orange); }
+  .footer .bar.f2 { flex:0 0 120px; background:var(--red); }
+  .footer .bar.f3 { flex:0 0 70px; background:var(--blue); border-radius:0 11px 11px 0; }
+
+  /* ====== EKRANY ====== */
+  .main {
+    grid-area:main;
+    position:relative;
+    overflow:hidden auto;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:4vw 5vw;
+  }
+  .screen { display:none; animation:fadein .5s; }
+  .screen.visible { display:block; }
+  @keyframes fadein { from { opacity:0; transform:translateY(10px); } }
+
+  .eyebrow {
+    color:var(--blue);
+    font-size:clamp(13px,2vw,17px);
+    margin-bottom:10px;
+  }
+  .eyebrow .blink { animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+
+  .mission-title {
+    color:var(--orange);
+    font-size:clamp(28px,5.5vw,58px);
+    font-weight:700;
+    line-height:1.05;
+    margin-bottom:18px;
+  }
+  .mission-desc {
+    color:var(--peach);
+    font-size:clamp(16px,2.6vw,24px);
+    line-height:1.5;
+    max-width:34em;
+    min-height:4.2em;
+    text-transform:none;
+    letter-spacing:.02em;
+  }
+  .mission-desc::after { content:"▌"; color:var(--orange); animation:blink .8s steps(1) infinite; }
+  .mission-desc.typed::after { content:""; }
+
+  .lcars-btn {
+    margin-top:24px;
+    display:inline-block;
+    background:var(--orange);
+    color:var(--bg);
+    border:none;
+    font-family:inherit;
+    font-weight:700;
+    font-size:clamp(15px,2.3vw,21px);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    padding:13px 34px;
+    border-radius:24px;
+    cursor:pointer;
+    transition:background .15s, transform .1s, opacity .2s;
+  }
+  .lcars-btn:hover  { background:var(--gold); }
+  .lcars-btn:active { transform:scale(.97); }
+  .lcars-btn:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
+  .lcars-btn.secondary { background:var(--blue); }
+  .lcars-btn.ghost { background:var(--dim); color:var(--peach); }
+  .lcars-btn:disabled { opacity:.35; cursor:not-allowed; }
+
+  /* logowanie / rejestracja */
+  .code-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:24px; align-items:center; }
+  .code-input {
+    background:#111;
+    border:2px solid var(--blue);
+    border-radius:18px;
+    color:var(--gold);
+    font-family:inherit;
+    font-size:clamp(18px,3vw,28px);
+    font-weight:700;
+    letter-spacing:.25em;
+    text-transform:uppercase;
+    text-align:center;
+    padding:12px 18px;
+    width:min(280px,70vw);
+  }
+  .code-input.name {
+    letter-spacing:.08em;
+    color:var(--peach);
+    border-color:var(--lavender);
+  }
+  .code-input:focus { outline:none; border-color:var(--orange); }
+  .code-row .lcars-btn { margin-top:0; }
+  .login-error {
+    margin-top:16px;
+    color:var(--red);
+    font-size:clamp(14px,2.2vw,18px);
+    min-height:1.4em;
+    font-weight:700;
+  }
+  .login-error.show { animation:shake .4s; }
+  .login-hint {
+    margin-top:8px;
+    color:var(--blue);
+    font-size:clamp(13px,2vw,16px);
+    text-transform:none;
+    letter-spacing:.03em;
+    max-width:34em;
+  }
+  @keyframes shake { 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }
+
+  /* zdjęcie-dowód */
+  .proof-row { margin-top:22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .proof-thumb {
+    width:96px; height:96px;
+    border-radius:14px;
+    border:3px solid var(--dim);
+    object-fit:cover;
+    display:none;
+  }
+  .proof-thumb.show { display:block; border-color:var(--lavender); }
+  .proof-status { color:var(--blue); font-size:14px; text-transform:none; }
+  .proof-status.err { color:var(--red); }
+
+  .btn-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+
+  .progress-label {
+    position:absolute;
+    bottom:14px; left:5vw;
+    color:var(--lavender);
+    font-size:14px;
+  }
+  .logout {
+    position:absolute;
+    bottom:14px; right:5vw;
+    color:var(--dim);
+    font-size:13px;
+    background:none; border:none;
+    font-family:inherit;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    cursor:pointer;
+  }
+  .logout:hover { color:var(--red); }
+
+  /* finał + galerie */
+  .finale .mission-title { color:var(--gold); }
+  .gallery {
+    margin-top:24px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:10px;
+    max-width:640px;
+  }
+  .gallery figure { position:relative; }
+  .gallery img {
+    width:100%; aspect-ratio:1; object-fit:cover;
+    border-radius:12px; border:2px solid var(--lavender);
+  }
+  .gallery figcaption {
+    position:absolute; left:6px; bottom:6px;
+    background:var(--bg); color:var(--orange);
+    font-size:12px; font-weight:700;
+    padding:2px 8px; border-radius:8px;
+    max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+
+  /* centrala */
+  .crew-list { margin-top:20px; max-width:640px; }
+  .crew-row {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--dim);
+    font-size:clamp(15px,2.4vw,20px);
+  }
+  .crew-row .crew-name { color:var(--gold); font-weight:700; flex:1; }
+  .crew-row .crew-progress { color:var(--blue); }
+  .crew-bar { display:flex; gap:3px; }
+  .crew-bar span {
+    width:14px; height:14px; border-radius:4px; background:var(--dim);
+  }
+  .crew-bar span.on { background:var(--lavender); }
+
+  @media (prefers-reduced-motion:reduce) {
+    *, *::after { animation:none !important; transition:none !important; }
+  }
+
+  /* ====== MOBILE ====== */
+  @media (max-width:640px) {
+    .frame {
+      grid-template-columns:1fr;
+      grid-template-rows:70px 44px 1fr 36px;
+      grid-template-areas:
+        "header"
+        "side"
+        "main"
+        "footer";
+    }
+    .elbow, .footel { display:none; }
+    .header { position:relative; }
+    .header h1 { top:4px; right:12px; font-size:26px; }
+    .stardate { top:38px; right:12px; font-size:11px; }
+    .side { flex-direction:row; }
+    .mblock { align-items:center; justify-content:center; font-size:15px; padding:4px; }
+    .main { padding:32px 18px 60px; justify-content:flex-start; }
+    .progress-label { left:18px; bottom:8px; }
+    .logout { right:18px; bottom:8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="elbow"></div>
+
+  <div class="header">
+    <div class="bar b1"></div>
+    <div class="bar b2"></div>
+    <div class="bar b3"></div>
+    <h1>Misja: Panieński</h1>
+    <div class="stardate" id="stardate"></div>
+  </div>
+
+  <nav class="side" id="side" aria-label="Postęp misji"></nav>
+
+  <main class="main">
+
+    <!-- LOGOWANIE -->
+    <section class="screen visible" id="screen-login">
+      <div class="eyebrow"><span class="blink">●</span> Komputer pokładowy &nbsp;·&nbsp; wymagana autoryzacja</div>
+      <div class="mission-title">Podaj kod<br>autoryzacyjny</div>
+      <p class="mission-desc typed">Pierwszy raz na pokładzie? Wymyśl własny kod (min. 4 znaki) i dobrze go zapamiętaj — będzie Twoim kluczem do misji przez cały weekend, na dowolnym telefonie. Masz już kod? Wpisz go, żeby wrócić do swojej misji.</p>
+      <div class="code-row">
+        <input class="code-input" id="code-input" type="text" inputmode="text"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="TWÓJ KOD" aria-label="Kod autoryzacyjny">
+        <button class="lcars-btn" id="login-btn" onclick="tryLogin()">Autoryzuj</button>
+      </div>
+      <div class="login-error" id="login-error" role="alert"></div>
+    </section>
+
+    <!-- REJESTRACJA NOWEGO KODU -->
+    <section class="screen" id="screen-register">
+      <div class="eyebrow"><span class="blink">●</span> Nieznany kod &nbsp;·&nbsp; tworzenie nowego profilu</div>
+      <div class="mission-title">Nowy członek<br>załogi?</div>
+      <p class="mission-desc typed">Nie znaleziono profilu dla tego kodu. Jeśli to Twoje pierwsze logowanie — podaj imię i powtórz kod, żeby utworzyć profil. Jeśli już grałaś, wróć i sprawdź, czy nie wkradła się literówka.</p>
+      <div class="code-row">
+        <input class="code-input name" id="name-input" type="text"
+               autocomplete="off" spellcheck="false" maxlength="20"
+               placeholder="TWOJE IMIĘ" aria-label="Imię">
+      </div>
+      <div class="code-row">
+        <input class="code-input" id="code-confirm" type="text" inputmode="text"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="POWTÓRZ KOD" aria-label="Powtórz kod">
+      </div>
+      <div class="login-error" id="register-error" role="alert"></div>
+      <p class="login-hint">Zapamiętaj swój kod! To nim wrócisz do swojego postępu — także na innym telefonie.</p>
+      <div class="btn-row">
+        <button class="lcars-btn" id="register-btn" onclick="createProfile()">Utwórz profil</button>
+        <button class="lcars-btn ghost" onclick="backToLogin()">Wróć</button>
+      </div>
+    </section>
+
+    <!-- START -->
+    <section class="screen" id="screen-start">
+      <div class="eyebrow">Dziennik kapitański &nbsp;·&nbsp; dostęp przyznany</div>
+      <div class="mission-title" id="welcome-title">Witaj na pokładzie</div>
+      <p class="mission-desc typed">Centrala przygotowała dla Ciebie 7 tajnych misji. Każda kolejna odblokuje się dopiero po przesłaniu zdjęcia-dowodu z poprzedniej. Załoga (druhny) służy wsparciem logistycznym i moralnym. Powodzenia, Kapitan!</p>
+      <button class="lcars-btn" onclick="startMissions()">Rozpocznij misję</button>
+    </section>
+
+    <!-- MISJA -->
+    <section class="screen" id="screen-mission">
+      <div class="eyebrow"><span class="blink">●</span> Przychodząca transmisja &nbsp;·&nbsp; priorytet: czerwony</div>
+      <div class="mission-title" id="m-title"></div>
+      <p class="mission-desc" id="m-desc"></p>
+
+      <div class="proof-row" id="proof-row" hidden>
+        <input type="file" id="proof-input" accept="image/*" capture="environment" hidden>
+        <button class="lcars-btn secondary" id="proof-btn" onclick="document.getElementById('proof-input').click()">📷 Dodaj zdjęcie-dowód</button>
+        <img class="proof-thumb" id="proof-thumb" alt="Podgląd zdjęcia-dowodu">
+        <span class="proof-status" id="proof-status">Bez dowodu misja nie zostanie zaliczona.</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="lcars-btn" id="m-btn" onclick="completeMission()" disabled hidden>Zadanie wykonane ✓</button>
+      </div>
+    </section>
+
+    <!-- FINAŁ -->
+    <section class="screen finale" id="screen-finale">
+      <div class="eyebrow">Transmisja z centrali floty</div>
+      <div class="mission-title">Wszystkie misje<br>zakończone sukcesem!</div>
+      <p class="mission-desc typed">Kapitan, udowodniłaś, że żadne wyzwanie nie jest Ci straszne. Poniżej raport fotograficzny z operacji. Flota melduje gotowość do ostatniej, dożywotniej misji: ślubu! 🖖</p>
+      <div class="gallery" id="gallery"></div>
+    </section>
+
+    <!-- CENTRALA (podgląd dla świadkowej) -->
+    <section class="screen" id="screen-central">
+      <div class="eyebrow"><span class="blink">●</span> Centrala floty &nbsp;·&nbsp; monitoring operacji</div>
+      <div class="mission-title">Raport załogi</div>
+      <div class="crew-list" id="crew-list"></div>
+      <div class="gallery" id="central-gallery"></div>
+      <button class="lcars-btn ghost" onclick="refreshCentral()" style="margin-top:24px">Odśwież teraz</button>
+      <p class="login-hint">Raport odświeża się automatycznie co 15 sekund.</p>
+    </section>
+
+    <div class="progress-label" id="progress"></div>
+    <button class="logout" id="logout-btn" onclick="logout()" hidden>Wyloguj</button>
+  </main>
+
+  <div class="footel"></div>
+  <div class="footer">
+    <div class="bar f1"></div>
+    <div class="bar f2"></div>
+    <div class="bar f3"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   EDYTUJ TUTAJ (1/3) — połączenie z bazą Supabase
+   ================================================================ */
+const SUPABASE_URL = 'https://evymkrmjxcounhcerhxa.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_hUMTlC96s71-TRbQLAJ48w_1TJ-EmqD';
+
+/* ================================================================
+   EDYTUJ TUTAJ (2/3) — kod specjalny otwierający podgląd centrali
+   ================================================================ */
+const CENTRAL_CODE = 'CENTRALA';
+
+/* ================================================================
+   EDYTUJ TUTAJ (3/3) — zadania (tytuł + treść)
+   ================================================================ */
+const MISSIONS = [
+  { title:"Misja 01 · Pierwszy kontakt",
+    desc:"Zdobądź autograf i życzenia ślubne od zupełnie obcej osoby. Bonusowe punkty, jeśli zaśpiewa Ci przy tym sto lat." },
+  { title:"Misja 02 · Kanał komunikacyjny",
+    desc:"Zadzwoń do przyszłego męża i wyznaj mu miłość... mówiąc wyłącznie cytatami z piosenek." },
+  { title:"Misja 03 · Analiza wspomnień",
+    desc:"Opowiedz załodze historię waszego poznania — ale w wersji epickiej, jakby to był zwiastun filmu sci-fi." },
+  { title:"Misja 04 · Manewry taneczne",
+    desc:"Wciągnij na parkiet (lub chodnik) przynajmniej trzy osoby i poprowadź wspólny układ taneczny przez minimum jedną zwrotkę." },
+  { title:"Misja 05 · Misja dyplomatyczna",
+    desc:"Znajdź osobę o imieniu takim jak Twój przyszły mąż i zrób z nią selfie. Jeśli się nie uda — selfie z kimś, kto zna kogoś o tym imieniu." },
+  { title:"Misja 06 · Toast kapitański",
+    desc:"Wygłoś uroczysty toast za załogę — wymień każdą druhnę i powiedz jej jedną rzecz, za którą ją kochasz." },
+  { title:"Misja 07 · Ostatnia granica",
+    desc:"Sekretne zadanie od druhen. Zgłoś się do pierwszej oficer (świadkowej) po rozkazy. Powodzenia, Kapitan!" },
+];
+const MIN_CODE_LENGTH = 4;
+/* ================================================================ */
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const STORE_PREFIX = 'lcars-panienski-';
+let userCode = null;
+let userName = '';
+let current = -1;
+let photos = [];            // url[indeks misji]
+let pendingPhoto = null;    // dataURL zdjęcia dla bieżącej misji
+let pendingCode = null;     // kod oczekujący na rejestrację
+let typeTimer = null;
+let centralTimer = null;
+
+/* ---------- pasek misji ---------- */
+const side = document.getElementById('side');
+MISSIONS.forEach((_, i) => {
+  const b = document.createElement('div');
+  b.className = 'mblock';
+  b.textContent = String(i + 1).padStart(2, '0');
+  side.appendChild(b);
+});
+const blocks = [...document.querySelectorAll('.mblock')];
+
+document.getElementById('stardate').textContent =
+  'Data gwiezdna ' + (new Date().getFullYear() - 1700 + (new Date().getMonth() + 1) / 100).toFixed(2).replace('.', '');
+
+/* ---------- pomocnicze ---------- */
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+  document.getElementById(id).classList.add('visible');
+}
+
+function beep(freq = 880, dur = 0.09) {
+  try {
+    const ctx = beep.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + dur);
+  } catch (e) {}
+}
+
+function typewrite(el, text, done) {
+  clearInterval(typeTimer);
+  el.classList.remove('typed');
+  el.textContent = '';
+  let i = 0;
+  typeTimer = setInterval(() => {
+    el.textContent = text.slice(0, ++i);
+    if (i % 3 === 0) beep(1200 + Math.random() * 300, 0.02);
+    if (i >= text.length) {
+      clearInterval(typeTimer);
+      el.classList.add('typed');
+      done && done();
+    }
+  }, 28);
+}
+
+function flashError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  beep(180, 0.25);
+}
+
+function normalizeCode(raw) {
+  return raw.trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* lokalna kopia — żeby po odświeżeniu wrócić bez logowania */
+function mirrorLocal() {
+  try {
+    localStorage.setItem(STORE_PREFIX + 'session',
+      JSON.stringify({ code: userCode, name: userName }));
+  } catch (e) {}
+}
+
+/* ---------- logowanie / rejestracja ---------- */
+async function tryLogin() {
+  const code = normalizeCode(document.getElementById('code-input').value);
+  if (code.length < MIN_CODE_LENGTH) {
+    flashError('login-error', 'Kod musi mieć min. ' + MIN_CODE_LENGTH + ' znaki');
+    return;
+  }
+  if (code === normalizeCode(CENTRAL_CODE)) { openCentral(); return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Łączenie...';
+  try {
+    const { data, error } = await sb.from('profiles')
+      .select('*').eq('code', code).maybeSingle();
+    if (error) throw error;
+    if (data) {
+      beep(660); setTimeout(() => beep(990), 120);
+      userCode = code;
+      userName = data.name || 'Kapitan';
+      document.getElementById('login-error').textContent = '';
+      mirrorLocal();
+      await loadPhotos();
+      enterSession(data.current);
+    } else {
+      pendingCode = code;
+      document.getElementById('register-error').textContent = '';
+      document.getElementById('name-input').value = '';
+      document.getElementById('code-confirm').value = '';
+      show('screen-register');
+      document.getElementById('name-input').focus();
+    }
+  } catch (e) {
+    flashError('login-error', 'Brak łączności z bazą — sprawdź internet');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Autoryzuj';
+  }
+}
+
+async function createProfile() {
+  const name = document.getElementById('name-input').value.trim();
+  const confirm = normalizeCode(document.getElementById('code-confirm').value);
+  if (!name) { flashError('register-error', 'Podaj imię'); return; }
+  if (confirm !== pendingCode) {
+    flashError('register-error', 'Kody się nie zgadzają — spróbuj jeszcze raz');
+    return;
+  }
+  const btn = document.getElementById('register-btn');
+  btn.disabled = true; btn.textContent = 'Tworzenie...';
+  try {
+    const { error } = await sb.from('profiles')
+      .insert({ code: pendingCode, name, current: -1 });
+    if (error) {
+      if (error.code === '23505') {
+        flashError('register-error', 'Ten kod właśnie ktoś zajął — wymyśl inny');
+      } else throw error;
+      return;
+    }
+    beep(660); setTimeout(() => beep(990), 120);
+    userCode = pendingCode;
+    userName = name;
+    current = -1;
+    photos = [];
+    pendingCode = null;
+    mirrorLocal();
+    document.getElementById('welcome-title').innerHTML =
+      'Witaj na pokładzie,<br>' + escapeHtml(userName);
+    document.getElementById('logout-btn').hidden = false;
+    show('screen-start');
+  } catch (e) {
+    flashError('register-error', 'Brak łączności z bazą — sprawdź internet');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Utwórz profil';
+  }
+}
+
+function backToLogin() {
+  pendingCode = null;
+  show('screen-login');
+  document.getElementById('code-input').select();
+}
+
+document.getElementById('code-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') tryLogin();
+});
+document.getElementById('code-confirm').addEventListener('keydown', e => {
+  if (e.key === 'Enter') createProfile();
+});
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('code-confirm').focus();
+});
+
+async function loadPhotos() {
+  photos = [];
+  const { data, error } = await sb.from('proofs')
+    .select('mission, url').eq('code', userCode);
+  if (!error && data) data.forEach(r => { photos[r.mission] = r.url; });
+}
+
+function enterSession(savedCurrent) {
+  document.getElementById('logout-btn').hidden = false;
+  if (savedCurrent >= MISSIONS.length) {
+    current = MISSIONS.length;
+    finaleScreen(false);
+  } else if (savedCurrent >= 0) {
+    current = savedCurrent - 1;   // next() zwiększy o 1
+    next(true);
+  } else {
+    current = -1;
+    document.getElementById('welcome-title').innerHTML =
+      'Witaj na pokładzie,<br>' + escapeHtml(userName);
+    show('screen-start');
+  }
+}
+
+function logout() {
+  userCode = null; userName = '';
+  localStorage.removeItem(STORE_PREFIX + 'session');
+  clearInterval(centralTimer); centralTimer = null;
+  document.getElementById('logout-btn').hidden = true;
+  document.getElementById('code-input').value = '';
+  blocks.forEach(b => b.classList.remove('active','done'));
+  document.getElementById('progress').textContent = '';
+  show('screen-login');
+}
+
+/* auto-wznowienie po odświeżeniu strony */
+window.addEventListener('DOMContentLoaded', async () => {
+  let session = null;
+  try { session = JSON.parse(localStorage.getItem(STORE_PREFIX + 'session')); } catch (e) {}
+  if (!session || !session.code) return;
+  try {
+    const { data, error } = await sb.from('profiles')
+      .select('*').eq('code', session.code).maybeSingle();
+    if (error || !data) return;
+    userCode = session.code;
+    userName = data.name || 'Kapitan';
+    await loadPhotos();
+    enterSession(data.current);
+  } catch (e) { /* offline — zostajemy na ekranie logowania */ }
+});
+
+/* ---------- zdjęcie-dowód ---------- */
+document.getElementById('proof-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      // kompresja przed wysyłką — szybciej i oszczędza transfer
+      const MAX = 800;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      pendingPhoto = c.toDataURL('image/jpeg', 0.75);
+
+      const thumb = document.getElementById('proof-thumb');
+      thumb.src = pendingPhoto;
+      thumb.classList.add('show');
+      const st = document.getElementById('proof-status');
+      st.textContent = 'Dowód gotowy do wysłania ✓';
+      st.classList.remove('err');
+      document.getElementById('proof-btn').textContent = '📷 Zmień zdjęcie';
+      document.getElementById('m-btn').disabled = false;
+      beep(880); setTimeout(() => beep(1320), 100);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ---------- przebieg misji ---------- */
+function startMissions() { beep(660); next(); }
+
+function next(resumed = false) {
+  current++;
+  if (current >= MISSIONS.length) { finaleScreen(true); return; }
+
+  blocks.forEach((b, i) => {
+    b.classList.toggle('done', i < current);
+    b.classList.toggle('active', i === current);
+  });
+
+  const m = MISSIONS[current];
+  document.getElementById('m-title').textContent = m.title;
+  document.getElementById('progress').textContent =
+    userName + ' · Misja ' + (current + 1) + ' z ' + MISSIONS.length;
+
+  // reset sekcji dowodu
+  pendingPhoto = null;
+  document.getElementById('proof-input').value = '';
+  document.getElementById('proof-thumb').classList.remove('show');
+  const st = document.getElementById('proof-status');
+  st.textContent = 'Bez dowodu misja nie zostanie zaliczona.';
+  st.classList.remove('err');
+  document.getElementById('proof-btn').textContent = '📷 Dodaj zdjęcie-dowód';
+  const btn = document.getElementById('m-btn');
+  btn.disabled = true;
+  btn.hidden = true;
+  document.getElementById('proof-row').hidden = true;
+
+  show('screen-mission');
+
+  const reveal = () => {
+    document.getElementById('proof-row').hidden = false;
+    btn.hidden = false;
+  };
+  if (resumed) {
+    const el = document.getElementById('m-desc');
+    el.textContent = m.desc; el.classList.add('typed');
+    reveal();
+  } else {
+    typewrite(document.getElementById('m-desc'), m.desc, reveal);
+  }
+}
+
+async function completeMission() {
+  if (!pendingPhoto || !userCode) return;
+  const btn = document.getElementById('m-btn');
+  const st = document.getElementById('proof-status');
+  btn.disabled = true;
+  btn.textContent = 'Wysyłanie...';
+  st.textContent = 'Przesyłanie dowodu do centrali...';
+  st.classList.remove('err');
+
+  try {
+    // 1) zdjęcie do storage
+    const blob = await (await fetch(pendingPhoto)).blob();
+    const path = userCode + '/' + String(current + 1).padStart(2, '0') + '-' + Date.now() + '.jpg';
+    const { error: e1 } = await sb.storage.from('proofs')
+      .upload(path, blob, { contentType: 'image/jpeg' });
+    if (e1) throw e1;
+    const { data: { publicUrl } } = sb.storage.from('proofs').getPublicUrl(path);
+
+    // 2) wpis dowodu
+    const { error: e2 } = await sb.from('proofs')
+      .upsert({ code: userCode, mission: current, url: publicUrl });
+    if (e2) throw e2;
+
+    // 3) postęp profilu
+    const { error: e3 } = await sb.from('profiles')
+      .update({ current: current + 1, updated_at: new Date().toISOString() })
+      .eq('code', userCode);
+    if (e3) throw e3;
+
+    photos[current] = publicUrl;
+    beep(523); setTimeout(() => beep(784), 120); setTimeout(() => beep(1047), 240);
+    btn.textContent = 'Zadanie wykonane ✓';
+    next();
+  } catch (err) {
+    st.textContent = 'Nie udało się wysłać — sprawdź internet i spróbuj ponownie.';
+    st.classList.add('err');
+    btn.disabled = false;
+    btn.textContent = 'Zadanie wykonane ✓';
+    beep(180, 0.3);
+  }
+}
+
+/* ---------- finał ---------- */
+function buildGallery(targetId, items) {
+  const g = document.getElementById(targetId);
+  g.innerHTML = '';
+  items.forEach(it => {
+    if (!it || !it.url) return;
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = it.url;
+    img.loading = 'lazy';
+    img.alt = it.caption;
+    const cap = document.createElement('figcaption');
+    cap.textContent = it.caption;
+    fig.append(img, cap);
+    g.appendChild(fig);
+  });
+}
+
+function finaleScreen(save) {
+  blocks.forEach(b => { b.classList.remove('active'); b.classList.add('done'); });
+  document.getElementById('progress').textContent = userName + ' · misja zakończona';
+  current = MISSIONS.length;
+  buildGallery('gallery', photos.map((url, i) =>
+    url ? { url, caption: String(i + 1).padStart(2, '0') } : null));
+  show('screen-finale');
+}
+
+/* ---------- centrala (podgląd dla świadkowej) ---------- */
+function openCentral() {
+  beep(660); setTimeout(() => beep(990), 120);
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('logout-btn').hidden = false;
+  document.getElementById('progress').textContent = 'Centrala floty';
+  show('screen-central');
+  refreshCentral();
+  clearInterval(centralTimer);
+  centralTimer = setInterval(refreshCentral, 15000);
+}
+
+async function refreshCentral() {
+  try {
+    const [{ data: profs }, { data: prfs }] = await Promise.all([
+      sb.from('profiles').select('*').order('updated_at', { ascending: false }),
+      sb.from('proofs').select('*').order('created_at', { ascending: false }),
+    ]);
+    const list = document.getElementById('crew-list');
+    list.innerHTML = '';
+    (profs || []).forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'crew-row';
+      const done = Math.max(0, Math.min(p.current, MISSIONS.length));
+      const bar = MISSIONS.map((_, i) =>
+        '<span class="' + (i < done ? 'on' : '') + '"></span>').join('');
+      row.innerHTML =
+        '<span class="crew-name">' + escapeHtml(p.name) + '</span>' +
+        '<span class="crew-bar">' + bar + '</span>' +
+        '<span class="crew-progress">' + done + '/' + MISSIONS.length + '</span>';
+      list.appendChild(row);
+    });
+    const names = {};
+    (profs || []).forEach(p => { names[p.code] = p.name; });
+    buildGallery('central-gallery', (prfs || []).map(r => ({
+      url: r.url,
+      caption: (names[r.code] || r.code) + ' · ' + String(r.mission + 1).padStart(2, '0'),
+    })));
+  } catch (e) { /* chwilowy brak sieci — spróbujemy za 15 s */ }
+}
+</script>
+</body>
+</html>
