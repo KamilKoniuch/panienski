@@ -118,13 +118,12 @@
   .footer {
     grid-area:footer;
     display:flex;
-    align-items:flex-start;
-    gap:8px;
+    align-items:center;
+    gap:12px;
+    padding:0 4px;
   }
   .footer .bar { height:22px; }
-  .footer .bar.f1 { flex:1; background:var(--orange); }
-  .footer .bar.f2 { flex:0 0 120px; background:var(--red); }
-  .footer .bar.f3 { flex:0 0 70px; background:var(--blue); border-radius:0 11px 11px 0; }
+  .footer .bar.f1 { flex:0 0 70px; background:var(--orange); border-radius:0 0 0 11px; }
 
   /* ====== EKRAN GŁÓWNY ====== */
   .main {
@@ -132,7 +131,7 @@
     position:relative;
     overflow-y:auto;
     overflow-x:hidden;
-    padding:4vw 5vw 72px;
+    padding:4vw 5vw 24px;
   }
   .screen { display:none; animation:fadein .5s; }
   .screen.visible { display:block; }
@@ -290,10 +289,12 @@
   }
 
   .progress-label {
-    position:absolute;
-    bottom:16px; left:5vw;
+    flex:1;
     color:var(--lavender);
     font-size:14px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
   }
 
   /* finał */
@@ -319,8 +320,7 @@
     .header h1 { top:4px; right:12px; font-size:26px; }
     .side { flex-direction:row; }
     .mblock { align-items:center; justify-content:center; font-size:15px; padding:4px; }
-    .main { padding:24px 18px 58px; }
-    .progress-label { left:18px; bottom:8px; }
+    .main { padding:24px 18px; }
     .briefing .mission-desc { font-size:15px; line-height:1.45; }
   }
 
@@ -358,13 +358,13 @@
   .crew-bar span { width:14px; height:14px; border-radius:4px; background:var(--dim, #664a26); }
   .crew-bar span.on { background:var(--lavender, #cc99cc); }
   .logout {
-    position:absolute; bottom:14px; right:5vw;
-    color:var(--dim, #664a26); font-size:13px;
+    flex:0 0 auto;
+    color:var(--gold, #ffcc66); font-size:13px;
     background:none; border:none; font-family:inherit;
     text-transform:uppercase; letter-spacing:.08em; cursor:pointer;
+    padding:4px 8px;
   }
   .logout:hover { color:var(--red, #cc6666); }
-  @media (max-width:640px) { .logout { right:18px; bottom:8px; } }
 
 </style>
 </head>
@@ -468,15 +468,13 @@ Wiceadmirał William J. Ross</p>
       <p class="lcars-note">Raport odświeża się automatycznie co 15 sekund.</p>
     </section>
 
-    <div class="progress-label" id="progress"></div>
-    <button class="logout" id="logout-btn" onclick="logout()" hidden>Wyloguj</button>
   </main>
 
   <div class="footel"></div>
   <div class="footer">
     <div class="bar f1"></div>
-    <div class="bar f2"></div>
-    <div class="bar f3"></div>
+    <div class="progress-label" id="progress"></div>
+    <button class="logout" id="logout-btn" onclick="logout()" hidden>Wyloguj</button>
   </div>
 </div>
 
