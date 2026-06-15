@@ -366,6 +366,19 @@
   }
   .logout:hover { color:var(--red, #cc6666); }
 
+
+  /* --- log głosowy --- */
+  .log-controls { display:flex; align-items:center; gap:14px; margin-top:6px; flex-wrap:wrap; }
+  .rec-timer {
+    font-family:inherit; font-weight:700; font-size:20px;
+    color:var(--red, #cc6666); letter-spacing:.1em;
+  }
+  #rec-btn.recording { background:var(--red, #cc6666); color:#000; animation:recpulse 1s infinite; }
+  @keyframes recpulse { 50% { opacity:.55; } }
+  .log-playback { display:block; width:min(360px,90%); margin-top:12px; }
+  .gallery-audio { width:100%; margin-top:6px; height:32px; }
+  @media (prefers-reduced-motion:reduce) { #rec-btn.recording { animation:none; } }
+
 </style>
 </head>
 <body>
@@ -443,7 +456,15 @@ Wiceadmirał William J. Ross</p>
         <div class="proof-preview-wrap" id="proof-preview-wrap" hidden>
           <img id="proof-preview" alt="Podgląd zdjęcia-dowodu">
         </div>
-        <p class="lcars-note" id="proof-status">Prześlij zdjęcie-dowód, aby odblokować potwierdzenie misji.</p>
+
+        <label class="lcars-label" for="rec-btn" style="margin-top:14px">Log oficera (nagranie głosowe)</label>
+        <div class="log-controls">
+          <button type="button" class="lcars-btn secondary" id="rec-btn" onclick="toggleRecording()">● Nagraj log</button>
+          <span class="rec-timer" id="rec-timer" hidden>00:00</span>
+        </div>
+        <audio class="log-playback" id="log-playback" controls hidden></audio>
+
+        <p class="lcars-note" id="proof-status">Prześlij zdjęcie oraz nagraj log oficera, aby odblokować potwierdzenie misji.</p>
         <div class="lcars-error" id="proof-error" aria-live="polite"></div>
       </div>
       <button class="lcars-btn" id="m-btn" onclick="completeMission()" hidden disabled>Zadanie wykonane ✓</button>
@@ -513,6 +534,12 @@ let activeCode = '';
 let activeName = '';
 let photos = [];
 let selectedProof = null;
+let audios = [];
+let mediaRecorder = null;
+let recChunks = [];
+let selectedAudioBlob = null;
+let recTimerInt = null;
+let recStartTs = 0;
 
 const side = document.getElementById('side');
 MISSIONS.forEach((_, i) => {
@@ -649,9 +676,9 @@ document.getElementById('repeat-code').addEventListener('keydown', e => { if (e.
 document.getElementById('profile-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('repeat-code').focus(); });
 
 async function loadPhotos() {
-  photos = [];
-  const { data, error } = await sb.from('proofs').select('mission, url').eq('code', activeCode);
-  if (!error && data) data.forEach(r => { photos[r.mission] = r.url; });
+  photos = []; audios = [];
+  const { data, error } = await sb.from('proofs').select('mission, url, audio_url').eq('code', activeCode);
+  if (!error && data) data.forEach(r => { photos[r.mission] = r.url; audios[r.mission] = r.audio_url; });
 }
 
 function enterSession(savedCurrent) {
@@ -721,11 +748,92 @@ function resetProofUpload() {
   selectedProof = null;
   const wrap = document.getElementById('proof-preview-wrap');
   if (wrap) wrap.hidden = true;
-  const status = document.getElementById('proof-status');
-  if (status) status.textContent = 'Prześlij zdjęcie-dowód, aby odblokować potwierdzenie misji.';
-  setError('proof-error', '');
   const file = document.getElementById('proof-file');
   if (file) file.value = '';
+  // audio
+  if (mediaRecorder && mediaRecorder.state === 'recording') { try { mediaRecorder.stop(); } catch (e) {} }
+  mediaRecorder = null; recChunks = []; selectedAudioBlob = null;
+  stopRecTimer();
+  const recBtn = document.getElementById('rec-btn');
+  if (recBtn) { recBtn.textContent = '● Nagraj log'; recBtn.classList.remove('recording'); }
+  const pb = document.getElementById('log-playback');
+  if (pb) { pb.hidden = true; pb.removeAttribute('src'); }
+  const t = document.getElementById('rec-timer'); if (t) t.hidden = true;
+  setError('proof-error', '');
+  refreshCompleteGate();
+}
+
+function pickAudioMime() {
+  const cands = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
+  for (const c of cands) { if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c; }
+  return '';
+}
+function audioExt(mime) {
+  if (mime.indexOf('mp4') >= 0) return 'm4a';
+  if (mime.indexOf('ogg') >= 0) return 'ogg';
+  return 'webm';
+}
+
+function refreshCompleteGate() {
+  const btn = document.getElementById('m-btn');
+  const ready = !!(selectedProof && selectedAudioBlob);
+  if (btn) btn.disabled = !ready;
+  const status = document.getElementById('proof-status');
+  if (status) {
+    if (ready) status.textContent = 'Zdjęcie i log gotowe ✓ — możesz potwierdzić misję.';
+    else if (selectedProof) status.textContent = 'Zdjęcie gotowe. Teraz nagraj log oficera.';
+    else if (selectedAudioBlob) status.textContent = 'Log nagrany. Teraz dołącz zdjęcie-dowód.';
+    else status.textContent = 'Prześlij zdjęcie oraz nagraj log oficera, aby odblokować potwierdzenie misji.';
+  }
+}
+
+function startRecTimer() {
+  recStartTs = Date.now();
+  const t = document.getElementById('rec-timer');
+  if (t) t.hidden = false;
+  recTimerInt = setInterval(() => {
+    const s = Math.floor((Date.now() - recStartTs) / 1000);
+    if (t) t.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    if (s >= 120 && mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  }, 250);
+}
+function stopRecTimer() { clearInterval(recTimerInt); recTimerInt = null; }
+
+async function toggleRecording() {
+  const btn = document.getElementById('rec-btn');
+  if (mediaRecorder && mediaRecorder.state === 'recording') { mediaRecorder.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    setError('proof-error', 'Ta przeglądarka nie obsługuje nagrywania — zaktualizuj ją lub użyj innego telefonu.');
+    return;
+  }
+  setError('proof-error', '');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = pickAudioMime();
+    mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recChunks = [];
+    mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const type = (mediaRecorder && mediaRecorder.mimeType) || mime || 'audio/webm';
+      selectedAudioBlob = new Blob(recChunks, { type });
+      const pb = document.getElementById('log-playback');
+      if (pb) { pb.src = URL.createObjectURL(selectedAudioBlob); pb.hidden = false; }
+      btn.textContent = '● Nagraj ponownie';
+      btn.classList.remove('recording');
+      stopRecTimer();
+      const t = document.getElementById('rec-timer'); if (t) t.hidden = true;
+      refreshCompleteGate();
+      beep(660);
+    };
+    mediaRecorder.start();
+    btn.textContent = '■ Zatrzymaj nagrywanie';
+    btn.classList.add('recording');
+    startRecTimer();
+    beep(990);
+  } catch (e) {
+    setError('proof-error', 'Brak dostępu do mikrofonu — zezwól na nagrywanie w ustawieniach przeglądarki.');
+  }
 }
 
 function handleProofUpload(event) {
@@ -735,9 +843,9 @@ function handleProofUpload(event) {
   const wrap = document.getElementById('proof-preview-wrap');
   const preview = document.getElementById('proof-preview');
   setError('proof-error', '');
-  if (btn) btn.disabled = true;
   selectedProof = null;
-  if (!file) { resetProofUpload(); return; }
+  refreshCompleteGate();
+  if (!file) { return; }
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
@@ -751,8 +859,7 @@ function handleProofUpload(event) {
       selectedProof = c.toDataURL('image/jpeg', 0.75);
       if (preview) preview.src = selectedProof;
       if (wrap) wrap.hidden = false;
-      if (status) status.textContent = 'Dowód gotowy do wysłania ✓';
-      if (btn) btn.disabled = false;
+      refreshCompleteGate();
       beep(880); setTimeout(() => beep(1320), 100);
     };
     img.src = ev.target.result;
@@ -761,23 +868,33 @@ function handleProofUpload(event) {
 }
 
 async function completeMission() {
-  if (!selectedProof || !activeCode) return;
+  if (!selectedProof || !selectedAudioBlob || !activeCode) return;
   const btn = document.getElementById('m-btn');
   const status = document.getElementById('proof-status');
   btn.disabled = true; btn.textContent = 'Wysyłanie...';
-  if (status) status.textContent = 'Przesyłanie dowodu do centrali...';
+  if (status) status.textContent = 'Przesyłanie zdjęcia i logu do centrali...';
   setError('proof-error', '');
   try {
+    const mm = String(current + 1).padStart(2, '0');
+    const stamp = Date.now();
+    // zdjęcie
     const blob = await (await fetch(selectedProof)).blob();
-    const path = activeCode + '/' + String(current + 1).padStart(2, '0') + '-' + Date.now() + '.jpg';
+    const path = activeCode + '/' + mm + '-' + stamp + '.jpg';
     const { error: e1 } = await sb.storage.from('proofs').upload(path, blob, { contentType: 'image/jpeg' });
     if (e1) throw e1;
     const { data: { publicUrl } } = sb.storage.from('proofs').getPublicUrl(path);
-    const { error: e2 } = await sb.from('proofs').upsert({ code: activeCode, mission: current, url: publicUrl });
+    // log głosowy
+    const aMime = selectedAudioBlob.type || 'audio/webm';
+    const aPath = activeCode + '/' + mm + '-' + stamp + '.' + audioExt(aMime);
+    const { error: ea } = await sb.storage.from('proofs').upload(aPath, selectedAudioBlob, { contentType: aMime });
+    if (ea) throw ea;
+    const { data: { publicUrl: audioUrl } } = sb.storage.from('proofs').getPublicUrl(aPath);
+    const { error: e2 } = await sb.from('proofs').upsert({ code: activeCode, mission: current, url: publicUrl, audio_url: audioUrl });
     if (e2) throw e2;
     const { error: e3 } = await sb.from('profiles').update({ current: current + 1, updated_at: new Date().toISOString() }).eq('code', activeCode);
     if (e3) throw e3;
     photos[current] = publicUrl;
+    audios[current] = audioUrl;
     beep(523); setTimeout(() => beep(784), 120); setTimeout(() => beep(1047), 240);
     btn.textContent = 'Zadanie wykonane ✓';
     showMission(false);
@@ -801,6 +918,11 @@ function buildGallery(targetId, items) {
     const cap = document.createElement('figcaption');
     cap.textContent = it.caption;
     fig.append(img, cap);
+    if (it.audio) {
+      const au = document.createElement('audio');
+      au.src = it.audio; au.controls = true; au.preload = 'none'; au.className = 'gallery-audio';
+      fig.appendChild(au);
+    }
     g.appendChild(fig);
   });
 }
@@ -810,7 +932,7 @@ function finale() {
   blocks.forEach(b => b.classList.add('done'));
   document.getElementById('progress').textContent = activeName + ' · misja zakończona';
   current = MISSIONS.length;
-  buildGallery('gallery', photos.map((url, i) => url ? { url, caption: String(i + 1).padStart(2, '0') } : null));
+  buildGallery('gallery', photos.map((url, i) => url ? { url, caption: String(i + 1).padStart(2, '0'), audio: audios[i] } : null));
   show('screen-finale');
 }
 
@@ -857,7 +979,7 @@ async function refreshCentral() {
     const names = {};
     (profs || []).forEach(p => { names[p.code] = p.name; });
     buildGallery('central-gallery', (prfs || []).map(r => ({
-      url: r.url, caption: (names[r.code] || r.code) + ' · ' + String(r.mission + 1).padStart(2, '0'),
+      url: r.url, caption: (names[r.code] || r.code) + ' · ' + String(r.mission + 1).padStart(2, '0'), audio: r.audio_url,
     })));
   } catch (e) {}
 }
