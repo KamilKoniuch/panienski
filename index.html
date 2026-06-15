@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LCARS — Misja: Panieński</title>
 <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+
   :root {
     --orange:   #ff9c00;
     --peach:    #ffcc99;
@@ -74,13 +76,6 @@
     color:var(--orange);
     letter-spacing:.1em;
   }
-  .stardate {
-    position:absolute;
-    top:58px; right:24px;
-    font-size:14px;
-    color:var(--blue);
-  }
-
   /* kolumna boczna: 7 bloków misji */
   .side {
     grid-area:side;
@@ -135,11 +130,9 @@
   .main {
     grid-area:main;
     position:relative;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    padding:4vw 5vw;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:4vw 5vw 72px;
   }
   .screen { display:none; animation:fadein .5s; }
   .screen.visible { display:block; }
@@ -172,6 +165,14 @@
   .mission-desc::after { content:"▌"; color:var(--orange); animation:blink .8s steps(1) infinite; }
   .mission-desc.typed::after { content:""; }
 
+  .briefing .mission-desc {
+    max-width:58em;
+    font-size:clamp(14px,1.8vw,19px);
+    line-height:1.45;
+    white-space:pre-line;
+    min-height:auto;
+  }
+
   .lcars-btn {
     margin-top:34px;
     display:inline-block;
@@ -193,6 +194,101 @@
   .lcars-btn:focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
   .lcars-btn.secondary { background:var(--blue); }
 
+  .auth-panel {
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    max-width:760px;
+    margin-top:24px;
+  }
+  .form-row {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+  }
+  .lcars-label {
+    color:var(--blue);
+    font-size:clamp(14px,2vw,18px);
+  }
+  .lcars-input {
+    width:min(100%,420px);
+    background:var(--bg);
+    color:var(--peach);
+    border:4px solid var(--orange);
+    border-radius:24px;
+    font-family:inherit;
+    font-size:clamp(18px,2.8vw,26px);
+    letter-spacing:.08em;
+    padding:12px 20px;
+    outline:none;
+  }
+  .lcars-input:focus {
+    border-color:var(--gold);
+    box-shadow:0 0 0 3px var(--blue);
+  }
+  .lcars-note {
+    color:var(--lavender);
+    font-size:clamp(14px,2vw,18px);
+    line-height:1.45;
+    max-width:44em;
+    text-transform:none;
+    letter-spacing:.02em;
+  }
+  .lcars-error {
+    color:var(--red);
+    font-size:clamp(14px,2vw,18px);
+    min-height:1.4em;
+    text-transform:none;
+    letter-spacing:.02em;
+  }
+
+  .proof-panel {
+    margin-top:26px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    max-width:760px;
+  }
+  .lcars-file {
+    width:min(100%,520px);
+    color:var(--peach);
+    font-family:inherit;
+    font-size:clamp(15px,2vw,18px);
+    letter-spacing:.04em;
+    text-transform:none;
+  }
+  .lcars-file::file-selector-button {
+    margin-right:14px;
+    background:var(--blue);
+    color:var(--bg);
+    border:none;
+    border-radius:18px;
+    padding:10px 20px;
+    font-family:inherit;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    cursor:pointer;
+  }
+  .proof-preview-wrap {
+    width:min(100%,320px);
+    border:4px solid var(--orange);
+    border-radius:24px;
+    overflow:hidden;
+    background:var(--bg);
+  }
+  .proof-preview-wrap img {
+    display:block;
+    width:100%;
+    height:auto;
+  }
+  .lcars-btn:disabled {
+    opacity:.45;
+    cursor:not-allowed;
+    filter:grayscale(.35);
+  }
+
   .progress-label {
     position:absolute;
     bottom:16px; left:5vw;
@@ -202,11 +298,6 @@
 
   /* finał */
   .finale .mission-title { color:var(--gold); }
-  .hearts { font-size:clamp(28px,5vw,48px); margin-top:20px; letter-spacing:.3em; }
-  .hearts span { display:inline-block; animation:float 2s ease-in-out infinite; }
-  .hearts span:nth-child(2) { animation-delay:.3s; }
-  .hearts span:nth-child(3) { animation-delay:.6s; }
-  @keyframes float { 50% { transform:translateY(-10px); } }
 
   @media (prefers-reduced-motion:reduce) {
     *, *::after { animation:none !important; transition:none !important; }
@@ -226,12 +317,55 @@
     .elbow, .footel { display:none; }
     .header { position:relative; }
     .header h1 { top:4px; right:12px; font-size:26px; }
-    .stardate { top:38px; right:12px; font-size:11px; }
     .side { flex-direction:row; }
     .mblock { align-items:center; justify-content:center; font-size:15px; padding:4px; }
-    .main { padding:24px 18px; }
+    .main { padding:24px 18px 58px; }
     .progress-label { left:18px; bottom:8px; }
+    .briefing .mission-desc { font-size:15px; line-height:1.45; }
   }
+
+
+  /* --- elementy dodane wraz z bazą danych --- */
+  .gallery {
+    margin-top:24px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:10px;
+    max-width:640px;
+  }
+  .gallery figure { position:relative; margin:0; }
+  .gallery img {
+    width:100%; aspect-ratio:1; object-fit:cover;
+    border-radius:12px; border:2px solid var(--lavender, #cc99cc);
+  }
+  .gallery figcaption {
+    position:absolute; left:6px; bottom:6px;
+    background:#000; color:var(--orange, #ff9c00);
+    font-size:12px; font-weight:700;
+    padding:2px 8px; border-radius:8px;
+    max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .crew-list { margin-top:20px; max-width:640px; }
+  .crew-row {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--dim, #664a26);
+    font-size:clamp(15px,2.4vw,20px);
+  }
+  .crew-row .crew-name { color:var(--gold, #ffcc66); font-weight:700; flex:1; }
+  .crew-row .crew-progress { color:var(--blue, #9999cc); }
+  .crew-bar { display:flex; gap:3px; }
+  .crew-bar span { width:14px; height:14px; border-radius:4px; background:var(--dim, #664a26); }
+  .crew-bar span.on { background:var(--lavender, #cc99cc); }
+  .logout {
+    position:absolute; bottom:14px; right:5vw;
+    color:var(--dim, #664a26); font-size:13px;
+    background:none; border:none; font-family:inherit;
+    text-transform:uppercase; letter-spacing:.08em; cursor:pointer;
+  }
+  .logout:hover { color:var(--red, #cc6666); }
+  @media (max-width:640px) { .logout { right:18px; bottom:8px; } }
+
 </style>
 </head>
 <body>
@@ -244,18 +378,58 @@
     <div class="bar b2"></div>
     <div class="bar b3"></div>
     <h1>Misja: Panieński</h1>
-    <div class="stardate" id="stardate"></div>
   </div>
 
   <nav class="side" id="side" aria-label="Postęp misji"></nav>
 
   <main class="main">
-    <!-- START -->
-    <section class="screen visible" id="screen-start">
-      <div class="eyebrow">Dziennik kapitański &nbsp;·&nbsp; dostęp przyznany</div>
-      <div class="mission-title">Witaj na pokładzie,<br>Panno Młoda</div>
-      <p class="mission-desc typed">Centrala przygotowała dla Ciebie 7 tajnych misji. Każda kolejna odblokuje się dopiero po wykonaniu poprzedniej. Załoga (druhny) służy wsparciem logistycznym i moralnym. Powodzenia, Kapitan!</p>
-      <button class="lcars-btn" onclick="startMissions()">Rozpocznij misję</button>
+    <!-- AUTORYZACJA -->
+    <section class="screen visible" id="screen-auth">
+      <div class="eyebrow"><span class="blink">●</span> Kanał autoryzacji &nbsp;·&nbsp; poziom dostępu: tajny</div>
+      <div class="mission-title">Podaj kod Autoryzacyjny</div>
+      <p class="mission-desc typed">Komandorze podporuczniku Machalska, Federacja chce powierzyć Ci tajną misję największej wagi. Aby odblokować wiadomość, wymyśl nowy kod autoryzacyjny. Dobrze go zapamiętaj, będzie Twoim kluczem dostępu przez całość misji. Wymyślony kod musi mieć minimum 4 znaki.</p>
+      <div class="auth-panel">
+        <label class="lcars-label" for="auth-code">Kod autoryzacyjny</label>
+        <div class="form-row">
+          <input class="lcars-input" id="auth-code" type="text" autocomplete="off" minlength="4" placeholder="MIN. 4 ZNAKI">
+          <button class="lcars-btn" id="auth-btn" onclick="authorizeCode()">Autoryzuj</button>
+        </div>
+        <div class="lcars-error" id="auth-error" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- NOWY PROFIL -->
+    <section class="screen" id="screen-new-profile">
+      <div class="eyebrow"><span class="blink">●</span> Nieznany kod &nbsp;·&nbsp; autoryzacja w toku</div>
+      <div class="mission-title">Rozpoczęcie nowej misji</div>
+      <p class="mission-desc typed">Podaj imię i powtórz kod – musimy mieć pewność, że go zapamiętałaś.</p>
+      <div class="auth-panel">
+        <label class="lcars-label" for="profile-name">Imię</label>
+        <input class="lcars-input" id="profile-name" type="text" autocomplete="name" placeholder="IMIĘ">
+        <label class="lcars-label" for="repeat-code">Powtórz kod</label>
+        <input class="lcars-input" id="repeat-code" type="text" autocomplete="off" minlength="4" placeholder="POWTÓRZ KOD">
+        <p class="lcars-note">Zapamiętaj swój kod! To nim wrócisz do swojego postępu — także na innym PADDzie.</p>
+        <div class="lcars-error" id="profile-error" aria-live="polite"></div>
+        <button class="lcars-btn" id="profile-btn" onclick="createProfile()">Zatwierdź profil</button>
+        <button class="lcars-btn secondary" onclick="backToAuth()">Wróć do autoryzacji</button>
+      </div>
+    </section>
+
+    <!-- START / WSTĘP -->
+    <section class="screen briefing" id="screen-start">
+      <div class="eyebrow">Dziennik oficera naukowego &nbsp;·&nbsp; dostęp przyznany</div>
+      <div class="mission-title">Witaj na pokładzie,<br>zostały przyznane Ci odpowiednie uprawnienia.</div>
+      <p class="mission-desc typed">Komandorze podporuczniku Machalska, dowództwo Gwiezdnej Floty zwraca się do Ciebie z poleceniem misji, która wymaga największej dyskrecji oraz doświadczenia w obszarze ksenopsychologii. Jak wiesz, zagrożenie ze strony Dominium nie ustaje. W związku z tym Federacja nawiązała tajną współpracę z przedstawicielami wszystkich ras w naszym kwadrancie. Oficerowie wszystkich ras współpracowali w ramach programu wymiany wywiadów na wszystkich rodzajach statków. Udało się nam nawet przekupić przedstawicieli Oriońskiego Syndykatu, aby stawili z nami opór najeźdźcy. Jak możesz sobie wyobrazić, organizacja tak zróżnicowanej siatki agentów wymaga nie tylko odpowiedniego zarządzania, ale również integracji i budowania zespołu.
+
+W trakcie ćwiczeń integracyjnych z udziałem przedstawicielek tej siatki doszło do wypadku. Ćwiczenie poza walorami integracyjnymi miało też przygotować agentki na operacje dostosowania rasy oraz zapoznać je z ludzkimi zwyczajami, kulturą i historią. W tym celu stworzyliśmy specjalny Holoprogram, który symulował przebierany wieczór panieński na Ziemi w XXI wieku. Agentki zostały odpowiednio przygotowane, jeśli chodzi o strój oraz wygląd fizyczny.
+
+Niestety w trakcie symulacji doszło do wypadku. Prawdopodobnie pobliska mgławica zagięła sygnał generowany przez kwazar Markarian, doprowadzając do zaburzenia w polach podprzestrzennych w przekaźnikach plazmy. Choć ta pozornie mała fluktuacja nie wpłynęła na większość systemów na stacji, doprowadziła do kaskady błędów w naszej eksperymentalnej Holokabinie. W efekcie agentki nigdy w pełni nie wyszły z symulacji.
+
+Utknęły one w pętli, w której zapomniały, kim były przed symulacją. Są przekonane, że uczestniczą w przebieranym wieczorze panieńskim w XXI wieku. Przygotowaliśmy program skrojony pod strukturę neuronalną każdej z agentek. Potrzebujemy jednak Twojego doświadczenia w ksenopsychologii, aby go przeprowadzić. Twoim celem jest wejście w rolę przyszłej panny młodej. Z każdą z agentek przeprowadzisz jedno ćwiczenie. Wystarczy, że przypomni im się, na jakim statku służyły. Dalej będziemy w stanie kontynuować terapię w znanym im kontekście. Nie zawiedź nas.
+
+Powodzenia
+Wiceadmirał William J. Ross</p>
+      <button class="lcars-btn" id="start-btn" onclick="startMissions()">Rozpocznij misję</button>
     </section>
 
     <!-- MISJA -->
@@ -263,19 +437,39 @@
       <div class="eyebrow"><span class="blink">●</span> Przychodząca transmisja &nbsp;·&nbsp; priorytet: czerwony</div>
       <div class="mission-title" id="m-title"></div>
       <p class="mission-desc" id="m-desc"></p>
-      <button class="lcars-btn" id="m-btn" onclick="completeMission()" hidden>Zadanie wykonane ✓</button>
+      <div class="proof-panel" id="proof-panel" hidden>
+        <label class="lcars-label" for="proof-file">Zdjęcie-dowód wykonania misji</label>
+        <input class="lcars-file" id="proof-file" type="file" accept="image/*" capture="environment" onchange="handleProofUpload(event)">
+        <div class="proof-preview-wrap" id="proof-preview-wrap" hidden>
+          <img id="proof-preview" alt="Podgląd zdjęcia-dowodu">
+        </div>
+        <p class="lcars-note" id="proof-status">Prześlij zdjęcie-dowód, aby odblokować potwierdzenie misji.</p>
+        <div class="lcars-error" id="proof-error" aria-live="polite"></div>
+      </div>
+      <button class="lcars-btn" id="m-btn" onclick="completeMission()" hidden disabled>Zadanie wykonane ✓</button>
     </section>
 
     <!-- FINAŁ -->
     <section class="screen finale" id="screen-finale">
       <div class="eyebrow">Transmisja z centrali floty</div>
       <div class="mission-title">Wszystkie misje<br>zakończone sukcesem!</div>
-      <p class="mission-desc typed">Kapitan, udowodniłaś, że żadne wyzwanie nie jest Ci straszne. Flota melduje gotowość do ostatniej, dożywotniej misji: ślubu. Niech moc... znaczy, niech miłość będzie z Tobą! 🖖</p>
-      <div class="hearts"><span>💛</span><span>🧡</span><span>💜</span></div>
-      <button class="lcars-btn secondary" onclick="location.reload()">Restart programu</button>
+      <p class="mission-desc typed">Podporucznik Komandorze, udowodniłaś, że żadne wyzwanie nie jest Ci straszne. Flota melduje gotowość do ostatniej, dożywotniej misji: ślubu. 🖖<br>Dif-tor heh smusma</p>
+      <div class="gallery" id="gallery"></div>
+      <button class="lcars-btn secondary" onclick="restartProgram()">Restart programu</button>
+    </section>
+
+    <!-- CENTRALA -->
+    <section class="screen" id="screen-central">
+      <div class="eyebrow"><span class="blink">●</span> Centrala floty &nbsp;·&nbsp; monitoring operacji</div>
+      <div class="mission-title">Raport załogi</div>
+      <div class="crew-list" id="crew-list"></div>
+      <div class="gallery" id="central-gallery"></div>
+      <button class="lcars-btn secondary" onclick="refreshCentral()">Odśwież teraz</button>
+      <p class="lcars-note">Raport odświeża się automatycznie co 15 sekund.</p>
     </section>
 
     <div class="progress-label" id="progress"></div>
+    <button class="logout" id="logout-btn" onclick="logout()" hidden>Wyloguj</button>
   </main>
 
   <div class="footel"></div>
@@ -287,29 +481,40 @@
 </div>
 
 <script>
-/* ================================================================
-   EDYTUJ TUTAJ — wpisz własne zadania (tytuł + treść)
-   ================================================================ */
+/* ============ DANE DO EDYCJI ============ */
+const SUPABASE_URL = 'https://evymkrmjxcounhcerhxa.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_hUMTlC96s71-TRbQLAJ48w_1TJ-EmqD';
+const CENTRAL_CODE = 'CENTRALA';
+
 const MISSIONS = [
   { title:"Misja 01 · Pierwszy kontakt",
-    desc:"Zdobądź autograf i życzenia ślubne od zupełnie obcej osoby. Bonusowe punkty, jeśli zaśpiewa Ci przy tym sto lat." },
-  { title:"Misja 02 · Kanał komunikacyjny",
-    desc:"Zadzwoń do przyszłego męża i wyznaj mu miłość... mówiąc wyłącznie cytatami z piosenek." },
-  { title:"Misja 03 · Analiza wspomnień",
-    desc:"Opowiedz załodze historię waszego poznania — ale w wersji epickiej, jakby to był zwiastun filmu sci-fi." },
-  { title:"Misja 04 · Manewry taneczne",
-    desc:"Wciągnij na parkiet (lub chodnik) przynajmniej trzy osoby i poprowadź wspólny układ taneczny przez minimum jedną zwrotkę." },
-  { title:"Misja 05 · Misja dyplomatyczna",
-    desc:"Znajdź osobę o imieniu takim jak Twój przyszły mąż i zrób z nią selfie. Jeśli się nie uda — selfie z kimś, kto zna kogoś o tym imieniu." },
-  { title:"Misja 06 · Toast kapitański",
-    desc:"Wygłoś uroczysty toast za załogę — wymień każdą druhnę i powiedz jej jedną rzecz, za którą ją kochasz." },
-  { title:"Misja 07 · Ostatnia granica",
-    desc:"Sekretne zadanie od druhen. Zgłoś się do pierwszej oficer (świadkowej) po rozkazy. Powodzenia, Kapitan!" },
+    desc:"Komandorko, znane nam jest twoje zamiłowanie do historii Federacji. Wybierz ze swojej kolekcji materiałów wideo dokumentujących osiągnięcia Gwiezdnej Floty najważniejsze fragmenty. Puść je wszystkim agentkom. Przynajmniej u jednej z nich wspomnienia osiągnięć NCC Enterprise powinny przywrócić część utraconej tożsamości. Upewnij się, że w materiale pojawia się co najmniej jeden Klingon. Opowiedz też swojej załodze, kim byli Cardasianie, Betazoidzi, Wulkanie i Bajoranie." },
+  { title:"Misja 02 · qeylIS",
+    desc:"Jedna z agentek jest Klingonką. Zorganizuj turniej w siłowaniu na rękę, aby wzbudzić w niej serce Khalessa." },
+  { title:"Misja 03 · Światło w Tunelu",
+    desc:"Jedna z agentek jest Cardasianką. Co Cardasianie lubią najbardziej? Kanar i przesłuchania. Odegraj scenę zadawania pytań o panu młodym. Przesłuchująca przypomni sobie, kim jest." },
+  { title:"Misja 04 · Rytuały godowe",
+    desc:"Jedna z agentek jest Wulkanką. Jej hobby to poznawanie zwyczajów godowych różnych ras. W szczególności okres dominacji aplikacji randkowych na Ziemi w XXI wieku budzi jej największe zafascynowanie — o ile można tak powiedzieć w przypadku Wulkanki. Poleć do niej swoim najlepszym tekstem. Możesz też ucharakteryzować się na mężczyznę z epoki. Im bardziej stereotypowo odegrasz tę scenę, tym większa szansa, że przypomni sobie, gdzie służyła." },
+  { title:"Misja 05 · Risa",
+    desc:"Dysonans poznawczy dotyka twoje agentki i powoduje dyskomfort. Przypomnij im o tym, co miłe w ich codzienności. Udajcie się do SPA na Risie. Jedna z agentek jest Orionką i uwielbiała tę część atrakcji na Risie." },
+  { title:"Misja 06 · Co stało się na Risie zostaje na Risie",
+    desc:"Risa znana jest nie tylko z masaży. Zabierz agentki na pokaz Burleski." },
+  { title:"Misja 07 · Bajor",
+    desc:"Nic tak nie przywraca kontaktu z prorokami jak praca w glinie. Zabierz swoje agentki na zajęcia z ceramiki." },
 ];
-/* ================================================================ */
+const MIN_CODE_LENGTH = 4;
+/* ======================================== */
 
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SESSION_KEY = 'lcars_mission_session_v2';
 let current = -1;
 let typeTimer = null;
+let centralTimer = null;
+let pendingCode = '';
+let activeCode = '';
+let activeName = '';
+let photos = [];
+let selectedProof = null;
 
 const side = document.getElementById('side');
 MISSIONS.forEach((_, i) => {
@@ -320,12 +525,32 @@ MISSIONS.forEach((_, i) => {
 });
 const blocks = [...document.querySelectorAll('.mblock')];
 
-document.getElementById('stardate').textContent =
-  'Data gwiezdna ' + (new Date().getFullYear() - 1700 + (new Date().getMonth() + 1) / 100).toFixed(2).replace('.', '');
-
+/* ---------- pomocnicze ---------- */
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
   document.getElementById(id).classList.add('visible');
+}
+function setError(id, message) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = message || '';
+}
+function normalizeCode(value) {
+  return String(value || '').trim().toUpperCase().replace(/\\s+/g, '');
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function clearBlocks() {
+  blocks.forEach(b => { b.classList.remove('active'); b.classList.remove('done'); });
+}
+function updateBlocks() {
+  blocks.forEach((b, i) => {
+    b.classList.toggle('done', i < current);
+    b.classList.toggle('active', i === current);
+  });
+}
+function mirrorSession() {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ code: activeCode, name: activeName })); } catch (e) {}
 }
 
 function beep(freq = 880, dur = 0.09) {
@@ -339,7 +564,6 @@ function beep(freq = 880, dur = 0.09) {
     o.start(); o.stop(ctx.currentTime + dur);
   } catch (e) {}
 }
-
 function typewrite(el, text, done) {
   clearInterval(typeTimer);
   el.classList.remove('typed');
@@ -348,42 +572,296 @@ function typewrite(el, text, done) {
   typeTimer = setInterval(() => {
     el.textContent = text.slice(0, ++i);
     if (i % 3 === 0) beep(1200 + Math.random() * 300, 0.02);
-    if (i >= text.length) {
-      clearInterval(typeTimer);
-      el.classList.add('typed');
-      done && done();
-    }
-  }, 28);
+    if (i >= text.length) { clearInterval(typeTimer); el.classList.add('typed'); done && done(); }
+  }, 18);
 }
 
-function startMissions() { beep(660); next(); }
+/* ---------- autoryzacja ---------- */
+async function authorizeCode() {
+  const code = normalizeCode(document.getElementById('auth-code').value);
+  setError('auth-error', '');
+  if (code.length < MIN_CODE_LENGTH) {
+    setError('auth-error', 'Kod musi mieć min. ' + MIN_CODE_LENGTH + ' znaki.');
+    beep(180, 0.25);
+    return;
+  }
+  if (code === normalizeCode(CENTRAL_CODE)) { openCentral(); return; }
 
-function next() {
+  const btn = document.getElementById('auth-btn');
+  btn.disabled = true; btn.textContent = 'Łączenie...';
+  try {
+    const { data, error } = await sb.from('profiles').select('*').eq('code', code).maybeSingle();
+    if (error) throw error;
+    if (data) {
+      beep(660); setTimeout(() => beep(990), 120);
+      activeCode = code; activeName = data.name || 'Komandor';
+      mirrorSession();
+      await loadPhotos();
+      enterSession(data.current);
+    } else {
+      pendingCode = code;
+      setError('profile-error', '');
+      document.getElementById('profile-name').value = '';
+      document.getElementById('repeat-code').value = '';
+      show('screen-new-profile');
+      document.getElementById('profile-name').focus();
+    }
+  } catch (e) {
+    setError('auth-error', 'Brak łączności z bazą — sprawdź internet.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Autoryzuj';
+  }
+}
+
+async function createProfile() {
+  const name = document.getElementById('profile-name').value.trim();
+  const repeat = normalizeCode(document.getElementById('repeat-code').value);
+  setError('profile-error', '');
+  if (!name) { setError('profile-error', 'Podaj imię.'); beep(180,0.25); return; }
+  if (repeat !== pendingCode) { setError('profile-error', 'Kody się nie zgadzają — spróbuj ponownie.'); beep(180,0.25); return; }
+
+  const btn = document.getElementById('profile-btn');
+  btn.disabled = true; btn.textContent = 'Tworzenie...';
+  try {
+    const { error } = await sb.from('profiles').insert({ code: pendingCode, name, current: -1 });
+    if (error) {
+      if (error.code === '23505') { setError('profile-error', 'Ten kod jest już zajęty — wymyśl inny.'); }
+      else throw error;
+      return;
+    }
+    beep(660); setTimeout(() => beep(990), 120);
+    activeCode = pendingCode; activeName = name; current = -1; photos = []; pendingCode = '';
+    mirrorSession();
+    showBriefing();
+  } catch (e) {
+    setError('profile-error', 'Brak łączności z bazą — sprawdź internet.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Zatwierdź profil';
+  }
+}
+
+function backToAuth() {
+  pendingCode = '';
+  show('screen-auth');
+  document.getElementById('auth-code').select();
+}
+
+document.getElementById('auth-code').addEventListener('keydown', e => { if (e.key === 'Enter') authorizeCode(); });
+document.getElementById('repeat-code').addEventListener('keydown', e => { if (e.key === 'Enter') createProfile(); });
+document.getElementById('profile-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('repeat-code').focus(); });
+
+async function loadPhotos() {
+  photos = [];
+  const { data, error } = await sb.from('proofs').select('mission, url').eq('code', activeCode);
+  if (!error && data) data.forEach(r => { photos[r.mission] = r.url; });
+}
+
+function enterSession(savedCurrent) {
+  document.getElementById('logout-btn').hidden = false;
+  if (savedCurrent >= MISSIONS.length) { current = MISSIONS.length; finale(); }
+  else if (savedCurrent >= 0) { current = savedCurrent - 1; showMission(true); }
+  else { current = -1; showBriefing(); }
+}
+
+function showBriefing() {
+  document.getElementById('logout-btn').hidden = false;
+  clearBlocks();
+  document.getElementById('progress').textContent = activeName + ' · brief';
+  show('screen-start');
+}
+
+function logout() {
+  activeCode = ''; activeName = '';
+  localStorage.removeItem(SESSION_KEY);
+  clearInterval(centralTimer); centralTimer = null;
+  document.getElementById('logout-btn').hidden = true;
+  document.getElementById('auth-code').value = '';
+  clearBlocks();
+  document.getElementById('progress').textContent = '';
+  show('screen-auth');
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  let session = null;
+  try { session = JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) {}
+  if (!session || !session.code) return;
+  try {
+    const { data, error } = await sb.from('profiles').select('*').eq('code', session.code).maybeSingle();
+    if (error || !data) return;
+    activeCode = session.code; activeName = data.name || 'Komandor';
+    await loadPhotos();
+    enterSession(data.current);
+  } catch (e) {}
+});
+
+/* ---------- misje ---------- */
+function startMissions() { beep(660); showMission(false); }
+
+function showMission(resumed) {
   current++;
   if (current >= MISSIONS.length) { finale(); return; }
-  blocks.forEach((b, i) => {
-    b.classList.toggle('done', i < current);
-    b.classList.toggle('active', i === current);
-  });
+  updateBlocks();
   const m = MISSIONS[current];
   document.getElementById('m-title').textContent = m.title;
-  document.getElementById('progress').textContent =
-    `Misja ${current + 1} z ${MISSIONS.length}`;
+  document.getElementById('progress').textContent = activeName + ' · Misja ' + (current + 1) + ' z ' + MISSIONS.length;
+  resetProofUpload();
+  document.getElementById('proof-panel').hidden = true;
   const btn = document.getElementById('m-btn');
-  btn.hidden = true;
+  btn.hidden = true; btn.disabled = true;
   show('screen-mission');
-  typewrite(document.getElementById('m-desc'), m.desc, () => { btn.hidden = false; });
+  const reveal = () => { document.getElementById('proof-panel').hidden = false; btn.hidden = false; };
+  if (resumed) {
+    const el = document.getElementById('m-desc');
+    el.textContent = m.desc; el.classList.add('typed');
+    reveal();
+  } else {
+    typewrite(document.getElementById('m-desc'), m.desc, reveal);
+  }
 }
 
-function completeMission() {
-  beep(523); setTimeout(() => beep(784), 120); setTimeout(() => beep(1047), 240);
-  next();
+function resetProofUpload() {
+  selectedProof = null;
+  const wrap = document.getElementById('proof-preview-wrap');
+  if (wrap) wrap.hidden = true;
+  const status = document.getElementById('proof-status');
+  if (status) status.textContent = 'Prześlij zdjęcie-dowód, aby odblokować potwierdzenie misji.';
+  setError('proof-error', '');
+  const file = document.getElementById('proof-file');
+  if (file) file.value = '';
+}
+
+function handleProofUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  const btn = document.getElementById('m-btn');
+  const status = document.getElementById('proof-status');
+  const wrap = document.getElementById('proof-preview-wrap');
+  const preview = document.getElementById('proof-preview');
+  setError('proof-error', '');
+  if (btn) btn.disabled = true;
+  selectedProof = null;
+  if (!file) { resetProofUpload(); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 800;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      selectedProof = c.toDataURL('image/jpeg', 0.75);
+      if (preview) preview.src = selectedProof;
+      if (wrap) wrap.hidden = false;
+      if (status) status.textContent = 'Dowód gotowy do wysłania ✓';
+      if (btn) btn.disabled = false;
+      beep(880); setTimeout(() => beep(1320), 100);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function completeMission() {
+  if (!selectedProof || !activeCode) return;
+  const btn = document.getElementById('m-btn');
+  const status = document.getElementById('proof-status');
+  btn.disabled = true; btn.textContent = 'Wysyłanie...';
+  if (status) status.textContent = 'Przesyłanie dowodu do centrali...';
+  setError('proof-error', '');
+  try {
+    const blob = await (await fetch(selectedProof)).blob();
+    const path = activeCode + '/' + String(current + 1).padStart(2, '0') + '-' + Date.now() + '.jpg';
+    const { error: e1 } = await sb.storage.from('proofs').upload(path, blob, { contentType: 'image/jpeg' });
+    if (e1) throw e1;
+    const { data: { publicUrl } } = sb.storage.from('proofs').getPublicUrl(path);
+    const { error: e2 } = await sb.from('proofs').upsert({ code: activeCode, mission: current, url: publicUrl });
+    if (e2) throw e2;
+    const { error: e3 } = await sb.from('profiles').update({ current: current + 1, updated_at: new Date().toISOString() }).eq('code', activeCode);
+    if (e3) throw e3;
+    photos[current] = publicUrl;
+    beep(523); setTimeout(() => beep(784), 120); setTimeout(() => beep(1047), 240);
+    btn.textContent = 'Zadanie wykonane ✓';
+    showMission(false);
+  } catch (err) {
+    setError('proof-error', 'Nie udało się wysłać — sprawdź internet i spróbuj ponownie.');
+    btn.disabled = false; btn.textContent = 'Zadanie wykonane ✓';
+    beep(180, 0.3);
+  }
+}
+
+/* ---------- finał ---------- */
+function buildGallery(targetId, items) {
+  const g = document.getElementById(targetId);
+  if (!g) return;
+  g.innerHTML = '';
+  items.forEach(it => {
+    if (!it || !it.url) return;
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = it.url; img.loading = 'lazy'; img.alt = it.caption;
+    const cap = document.createElement('figcaption');
+    cap.textContent = it.caption;
+    fig.append(img, cap);
+    g.appendChild(fig);
+  });
 }
 
 function finale() {
-  blocks.forEach(b => { b.classList.remove('active'); b.classList.add('done'); });
-  document.getElementById('progress').textContent = 'Status: misja zakończona';
+  clearBlocks();
+  blocks.forEach(b => b.classList.add('done'));
+  document.getElementById('progress').textContent = activeName + ' · misja zakończona';
+  current = MISSIONS.length;
+  buildGallery('gallery', photos.map((url, i) => url ? { url, caption: String(i + 1).padStart(2, '0') } : null));
   show('screen-finale');
+}
+
+async function restartProgram() {
+  if (!confirm('Skasować cały postęp i zdjęcia dla: ' + activeName + '?')) return;
+  try {
+    await sb.from('proofs').delete().eq('code', activeCode);
+    await sb.from('profiles').update({ current: -1 }).eq('code', activeCode);
+  } catch (e) {}
+  current = -1; photos = []; selectedProof = null;
+  showBriefing();
+}
+
+/* ---------- centrala ---------- */
+function openCentral() {
+  beep(660); setTimeout(() => beep(990), 120);
+  setError('auth-error', '');
+  document.getElementById('logout-btn').hidden = false;
+  document.getElementById('progress').textContent = 'Centrala floty';
+  show('screen-central');
+  refreshCentral();
+  clearInterval(centralTimer);
+  centralTimer = setInterval(refreshCentral, 15000);
+}
+
+async function refreshCentral() {
+  try {
+    const [{ data: profs }, { data: prfs }] = await Promise.all([
+      sb.from('profiles').select('*').order('updated_at', { ascending: false }),
+      sb.from('proofs').select('*').order('created_at', { ascending: false }),
+    ]);
+    const list = document.getElementById('crew-list');
+    list.innerHTML = '';
+    (profs || []).forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'crew-row';
+      const done = Math.max(0, Math.min(p.current, MISSIONS.length));
+      const bar = MISSIONS.map((_, i) => '<span class="' + (i < done ? 'on' : '') + '"></span>').join('');
+      row.innerHTML = '<span class="crew-name">' + escapeHtml(p.name) + '</span>' +
+                      '<span class="crew-bar">' + bar + '</span>' +
+                      '<span class="crew-progress">' + done + '/' + MISSIONS.length + '</span>';
+      list.appendChild(row);
+    });
+    const names = {};
+    (profs || []).forEach(p => { names[p.code] = p.name; });
+    buildGallery('central-gallery', (prfs || []).map(r => ({
+      url: r.url, caption: (names[r.code] || r.code) + ' · ' + String(r.mission + 1).padStart(2, '0'),
+    })));
+  } catch (e) {}
 }
 </script>
 </body>
