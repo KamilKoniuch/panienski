@@ -898,9 +898,17 @@ function pickAudioMime() {
   for (const c of cands) { if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c; }
   return '';
 }
+function storageAudioMime(mime) {
+  const m = String(mime || 'audio/webm').toLowerCase();
+  if (m.indexOf('webm') >= 0) return 'audio/webm';
+  if (m.indexOf('mp4') >= 0) return 'audio/mp4';
+  if (m.indexOf('ogg') >= 0) return 'audio/ogg';
+  return 'audio/webm';
+}
 function audioExt(mime) {
-  if (mime.indexOf('mp4') >= 0) return 'm4a';
-  if (mime.indexOf('ogg') >= 0) return 'ogg';
+  const m = storageAudioMime(mime);
+  if (m.indexOf('mp4') >= 0) return 'm4a';
+  if (m.indexOf('ogg') >= 0) return 'ogg';
   return 'webm';
 }
 
@@ -1016,9 +1024,10 @@ async function completeMission() {
     if (e1) throw e1;
     const { data: { publicUrl } } = sb.storage.from('proofs').getPublicUrl(path);
     // log głosowy
-    const aMime = selectedAudioBlob.type || 'audio/webm';
+    const aMime = storageAudioMime(selectedAudioBlob.type);
+    const aBlob = selectedAudioBlob.type === aMime ? selectedAudioBlob : new Blob([selectedAudioBlob], { type: aMime });
     const aPath = activeCode + '/' + mm + '-' + stamp + '.' + audioExt(aMime);
-    const { error: ea } = await sb.storage.from('proofs').upload(aPath, selectedAudioBlob, { contentType: aMime });
+    const { error: ea } = await sb.storage.from('proofs').upload(aPath, aBlob, { contentType: aMime });
     if (ea) throw ea;
     const { data: { publicUrl: audioUrl } } = sb.storage.from('proofs').getPublicUrl(aPath);
     const { error: e2 } = await sb.from('proofs').upsert({ code: activeCode, mission: current, url: publicUrl, audio_url: audioUrl });
@@ -1032,6 +1041,7 @@ async function completeMission() {
     const justDone = current;
     revealPlanet(justDone, () => showMission(false));
   } catch (err) {
+    console.error('Błąd wysyłki do Supabase:', err);
     setError('proof-error', 'Nie udało się wysłać — sprawdź internet i spróbuj ponownie.');
     btn.disabled = false; btn.textContent = 'Zadanie wykonane ✓';
     playSfx('deny');
